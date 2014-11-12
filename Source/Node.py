@@ -15,24 +15,47 @@ def serialize(strlist):
 
 class Node(object):
 #     new_id = 0
-    def __init__(self, pid = None, pvalue = None, prefid= None):
+    def __init__(self, pid = None, pvalue = None, prefid_dic= {}, pindexes = []):
             
+        # ----    id    ----
         if pid:
             self.id = pid
         else:
-            self.id = redclt.incr('new_id')
+            self.id = redclt.incr('node:new_id')
 #             self.id = Node.new_id
 #             Node.new_id += 1
             
+        # ----    value    ----
         if pvalue:
             self.value = pvalue
         else:
             self.value = None
             
-        if prefid:
-            self.refid = prefid
+        # ----    refid_dic    ----
+        if prefid_dic:
+            self.refid_dic = prefid_dic
         else:
-            self.refid = None
+            self.refid_dic = None
+            
+        # ----    indexes    ----
+        if pindexes:
+            self.indexes = pindexes
+        else:
+            self.indexes = None
+            
+    def store(self):
+        
+        redclt.hset('node:%s' % self.id, 'value', self.value)
+        
+        indexes_k = redclt.incr('node:indexes_k')
+        for index in self.indexes:
+            redclt.sadd('node:%s' % indexes_k, index)
+        redclt.hset('node:%s' % self.id, 'indexes', indexes_k)
+        
+        refids_k =  redclt.incr('node:refids_k')
+        for relation, refid in self.refid_dic.items():
+            redclt.hset('node:%s' % refids_k, relation.pk, refid)
+        redclt.hset('node:%s' % self.id, 'refid_dic', refids_k)
         
     def json_value(self):
         return json.dumps([self.id, self.value])
