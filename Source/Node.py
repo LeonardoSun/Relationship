@@ -43,47 +43,50 @@ class Node(object):
             
     def store(self):
         
-#         pipeline = redclt.pipeline()
+        pipeline = redclt.pipeline()
         redclt.hset('node:%s' % self.id, 'value', self.value)
         
-#         lua_index = r'''
-#         local indexes_k = redis.call('incr', 'node:indexes_k')
-#         for i=1, #ARGV do
-#             redis.call('sadd', 'node:'..indexes_k, ARGV[i])
-#         end
-#         redis.call('hset', 'node:'..KEYS[1], 'indexes', indexes_k)
-#         return indexes_k
-#         '''
-#         store_index = redclt.register_script(lua_index)
-#         store_index(keys=[self.id], args=self.indexes.keys(), client=pipeline)
-                
-        indexes_k = redclt.incr('node:indexes_k')
+        lua_index = r'''
+        local indexes_k = redis.call('incr', 'node:indexes_k')
+        for i=1, #ARGV do
+            redis.call('sadd', 'node:indexes:'..indexes_k, ARGV[i])
+        end
+        redis.call('hset', 'node:'..KEYS[1], 'indexes', indexes_k)
+        return indexes_k
+        '''
+        store_index = redclt.register_script(lua_index)
+        args = []
         for key, value in self.indexes.items():
-            redclt.sadd(r'node\:%s' % indexes_k, r'%s\:%s' % (key, value))
-        redclt.hset('node:%s' % self.id, 'indexes', indexes_k)
+            args.append('%s:%s' % (key, value))
+        store_index(keys=[self.id], args=self.indexes.keys(), client=pipeline)
+                
+#         indexes_k = redclt.incr('node:indexes_k')
+#         for key, value in self.indexes.items():
+#             redclt.sadd('node:indexes:%s' % indexes_k, '%s:%s' % (key, value))
+#         redclt.hset('node:%s' % self.id, 'indexes', indexes_k)
         
-#         lua_refid = r'''
-#         local refids_k = redis.call('incr', 'node:refids_k')
-#         for i=1, #ARGV do
-#             redis.call('hset', 'node:'..refids_k, KEYS[i+1], ARGV[i])
-#         end
-#         redis.call('hset', 'node:'..KEYS[1], 'refid_dic', refids_k)
-#         return refids_k
-#         '''
-#         store_index = redclt.register_script(lua_refid)
-#         keys = [self.id]
-#         args = []
-#         for relation, refid in self.refid_dic.items():
-#             keys.append(relation.pk)
-#             args.append(refid)
-#         store_index(keys=keys, args=args, client=pipeline)
-        
-        refids_k =  redclt.incr('node:refids_k')
+        lua_refid = r'''
+        local refids_k = redis.call('incr', 'node:refids_k')
+        for i=1, #ARGV do
+            redis.call('hset', 'node:refids:'..refids_k, KEYS[i+1], ARGV[i])
+        end
+        redis.call('hset', 'node:'..KEYS[1], 'refid_dic', refids_k)
+        return refids_k
+        '''
+        store_index = redclt.register_script(lua_refid)
+        keys = [self.id]
+        args = []
         for relation, refid in self.refid_dic.items():
-            redclt.hset('node:%s' % refids_k, relation.pk, refid)
-        redclt.hset('node:%s' % self.id, 'refid_dic', refids_k)
+            keys.append(relation.pk)
+            args.append(refid)
+        store_index(keys=keys, args=args, client=pipeline)
         
-#         pipeline.execute()
+#         refids_k =  redclt.incr('node:refids_k')
+#         for relation, refid in self.refid_dic.items():
+#             redclt.hset('node:refids:%s' % refids_k, relation.pk, refid)
+#         redclt.hset('node:%s' % self.id, 'refid_dic', refids_k)
+        
+        pipeline.execute()
         
     def json_value(self):
         return json.dumps([self.id, self.value])
